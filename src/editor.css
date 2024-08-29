@@ -1,7 +1,29 @@
+@font-face {
+    font-family: iAWriterMono;
+    src: url(./fonts/iAWriterMonoS-Regular.woff2);
+}
+
+@font-face {
+    font-family: iAWriterDuo;
+    src: url(./fonts/iAWriterDuoS-Regular.woff2);
+}
+@font-face {
+    font-family: iAWriterQuattro;
+    src: url(./fonts/iAWriterQuattroS-Regular.woff2);
+}
+
 html{
-    font-size:16pt;
+    font-size:20pt;
     font-family: 'Courier New', Courier, monospace;
-    
+}
+
+body{
+    font-size:20pt;
+    font-family: 'Courier New', Courier, monospace;
+    /* font-size:14pt; */
+    /* font-family: 'iAWriterMono'; */
+    /* font-family: 'iAWriterDuo'; */
+    /* font-family: 'iAWriterQuattro'; */
 }
 
 .editor{

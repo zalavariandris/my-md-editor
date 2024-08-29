@@ -3,9 +3,9 @@ import _ from "lodash"
 
 
 let document = {
-    source: `# My markdown Editor
+    source: `# My
 This is a **markdown** #richtext editor.
-support **strong**, _emphasis_, #tags and @mentions`,
+support **strong**, _emphasis_, #tags and @mentions.`,
     
     selection: {
         anchorNode: "ID2",
@@ -26,7 +26,21 @@ function emitChange() {
     }
 };
 
+
+
 export default {
+    insertTextAt(text, pos){
+        console.log(`insert text at: ${text}, ${pos}`)
+        const nextDocument = produce(document, draft=>{
+            draft.source = [document.source.slice(0, pos), text, document.source.slice(pos)].join('');
+        });
+        document = nextDocument;
+        emitChange()
+    },
+
+    removeTextInRange(range){
+
+    },
     subscribe(listener) 
     {
         listeners = [...listeners, listener];
