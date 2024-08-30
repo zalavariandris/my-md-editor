@@ -2,16 +2,18 @@ import { useState, useRef, useSyncExternalStore, createElement, useEffect } from
 import rangy from "rangy"
 import './editor.css'
 import documentStore from "./documentStore.js"
+import {parseMarkdown, segmentMarkdownText} from "./markdown_helpers.ts"
+
 const h = createElement
 
 function selectCharacters(root, start, end){
+	console.assert(root?true:false);
 	let startNode = null;
 	let startOffset = 0;
 	let endNode = null;
 	let endOffset = 0;
 
-
-	let stack = [...root.childNodes]
+	let stack = [...root.childNodes];
 
 	
 	let position = 0;
@@ -44,192 +46,179 @@ function selectCharacters(root, start, end){
 	//select the range
 	console.log(startNode, startOffset, endNode, endOffset)
 	let range = new Range();
-	range.setStart(startNode, startOffset);
-	range.setEnd(endNode, endOffset);
-
-	document.getSelection().removeAllRanges()
-	document.getSelection().addRange(range);
-
+	try {
+		range.setStart(startNode, startOffset);
+		range.setEnd(endNode, endOffset);
+	
+		document.getSelection().removeAllRanges()
+		document.getSelection().addRange(range);
+	} catch (error) {
+		console.warn("invalid selection range", range);
+	}
 }
 window.selectCharacters = selectCharacters
 
+function getCharacterSelection(root){
+	console.assert(root?true:false);
+	const selectionRange = window.getSelection().getRangeAt(0);
+	let start = undefined;
+	let end = undefined;
 
-function segmentMarkdownText(text) {
-	// Define regex patterns for different markdown elements
-	const strongRegexp = /\*\*([^*]+)\*\*/g;
-	const emphasisRegexp = /_([^_]+)_/g;
-	const mentionRegexp = /@\w+/g;
-	const tagRegexp = /#\w+/g;
-	
-	// Master regex pattern to match any markdown element
-	const masterRegexp = new RegExp(
-		`(${strongRegexp.source})|(${emphasisRegexp.source})|(${mentionRegexp.source})|(${tagRegexp.source})`,
-		'g'
-	);
-	
-	const segments = [];
-	let lastIndex = 0;
-	let match;
-	
-	// Iterate over all matches in the text
-	while ((match = masterRegexp.exec(text)) !== null) {
-		const [segment] = match;
-		
-		// Add any plain text before this markdown match
-		if (match.index > lastIndex) {
-			const plainText = text.slice(lastIndex, match.index);
-			if (plainText.trim()) { // Ignore empty spaces
-				segments.push({ type: "text", content: plainText });
+	let stack = [...root.childNodes]
+
+	let prevPos = 0;
+	let position = 0;
+	while(stack.length>0)
+	{
+		prevPos = position;
+		const node = stack.shift();
+		if (node.nodeType==Node.TEXT_NODE) {
+			
+			position+=node.length;
+			if(node.nextElementSibling==undefined && window.getComputedStyle(node.parentNode).display==="block"){
+				position+=1;
 			}
 		}
-		
-		// Determine the type of the segment based on the regex match
-		if (segment.match(strongRegexp)) {
-			segments.push({ type: "strong", content: segment });
-		} else if (segment.match(emphasisRegexp)) {
-			segments.push({ type: "emphasis", content: segment });
-		} else if (segment.match(mentionRegexp)) {
-			segments.push({ type: "mention", content: segment });
-		} else if (segment.match(tagRegexp)) {
-			segments.push({ type: "tag", content: segment });
+		else {
+			stack = [...node.childNodes, ...stack];
 		}
-		
-		// Update lastIndex to the end of the current match
-		lastIndex = match.index + segment.length;
-	}
-	
-	// Add any remaining text after the last markdown match
-	if (lastIndex < text.length) {
-		const remainingText = text.slice(lastIndex);
-		if (remainingText.trim()) { // Ignore empty spaces
-			segments.push({ type: "text", content: remainingText });
-		}
-	}
-	
-	return segments;
-}
 
+		if(!start && selectionRange.startContainer == node){
+			start = prevPos+selectionRange.startOffset;
+		}
+
+		if(selectionRange.endContainer == node){
+			end = prevPos+selectionRange.endOffset;
+			break
+		}
+	}
+
+	return [start, end];
+}
+window.getCharacterSelection = getCharacterSelection;
 
 function MDEditor() {
 	const editorDiv = useRef(null);
-	const [source, setSource] = useState(`# My\n`+
+	const [source, setSource] = useState(`# My _markdown_ editor\n`+
 										`This is a **markdown** #richtext editor.\n`+
 										`support **strong**, _emphasis_, #tags and @mentions.\n`)
-		const [selection, setSelection] = useState([0,0]);
-		
-		useEffect(()=>{
-			// setSelectionRelativeToElement(editorDiv.current, selection[0], selection[1]
+	const [selection, setSelection] = useState([0,0]);
+	
+	useEffect(()=>{
+		selectCharacters(editorDiv.current, selection[0], selection[1]);
+	}, selection);
+	
+	useEffect(()=>{
+		console.log("hey")
+		document.addEventListener("selectionchange", onSelectionChange);
+	}, []);
+	
+	function onKeyDown(e) {
+		console.log(e.key);
+		e.preventDefault();
 
-			selectCharacters(editorDiv.current, selection[0], selection[1]);
-			
-		}, selection);
-		
-		
-		useEffect(()=>{
-			console.log("hey")
-			// document.addEventListener("selectionchange", onSelectionChange);
-			// window.getSelection().removeAllRanges();
-		}, []);
-		
-		function onKeyDown(e){
-			console.log(e.key);
-			// const selectionOffset = getSelectionOffsetRelativeToElement(editorDiv.current);
-			// // console.log("selectionOffset", selectionOffset)
-			// setSource(draft=>{
-			// 	  return [draft.slice(0, selectionOffset), e.key, draft.slice(selectionOffset)].join("");
-			// }, ()=>{
-			// 	console.log("hez")
-			// });
-			// setSelectionOffsetRelativeToParent(editorDiv.current,selectionOffset+e.key.length);
-			e.preventDefault();
-		};
-		
-		function onPaste(e){
-			e.preventDefault();
-		}
-		
-		function onDrop(e){
-			e.preventDefault();
-		}
-		
-		function onSelectionHasChanged(e)
-		{
-			// const selection = document.getSelection()
-			// console.log("selection has changed", selection);
-			
-			// if(!selection.rangeCount){
-			//   console.log("no selection range"); // no selection
-			//   return;
-			// }
-			// const range = selection.getRangeAt(0);
-			// console.log("selection range:", range);
-			// if(range.collapsed){ // simple cursor
-			
-			// }
-			
-			// console.log(range.getBoundingClientRect())
-			// console.log(range.getClientRects())
-			
-		}
-		
-		// function onSelectionChange(e){
-		//   // console.log("selection change", document.getSelection());
-		//   const windowSelection = document.getSelection();
-		//   console.log(windowSelection)
-		//   if(!windowSelection.rangeCount>0){
-		//     setSelection([-1,-1]);
-		//     return;
-		//   }
-		//   const range = windowSelection.getRangeAt(0);
-		//   const relativeOffset = getSelectionRangeRelativeToElement(editorDiv)
-		//   setSelection([relativeOffset.start, relativeOffset.end]);
-		// }
-		
-		return h("div",{},
-			h("input", {type:"number", value:selection?selection[0]:-1, onChange: e=>setSelection([parseInt(e.target.value), parseInt(e.target.value)+1])}),
-			h("input", {type:"number", value:selection?selection[0]:-1, onChange: e=>setSelection([parseInt(e.target.value), selection[1]])}),
-			h("input", {type:"number", value:selection?selection[1]:-1, onChange: e=>setSelection([selection[0], e.target.value.parseInt()])}),
-			h("div",{
-				id:"editor",
-				ref: editorDiv,
-				className:"editor",
-				contentEditable:true,
-				onKeyDown:onKeyDown,
-				onPaste: onPaste,
-				onSelect:onSelectionHasChanged,
-				onDrop: onDrop,
-				suppressContentEditableWarning: true
-			},
-			
-			source.split("\n").map(line=>{
-				if(line.startsWith("# ")){
-					return h("h1", {}, line);
+		switch (e.key) {
+			case "ArrowLeft":
+				if(selection[0]==selection[1]){
+					setSelection(sel=>[sel[0]-1, sel[1]-1])
+				}else{
+					setSelection(sel=>[sel[0], sel[0]])
 				}
-				else{
-					const segments = segmentMarkdownText(line);
-					const children = segments.map(segment=>{
-						if(segment.type==="strong"){
-							return h("strong", {},segment.content)
-						}
-						else if(segment.type==="emphasis"){
-							return h("em", {},segment.content)
-						}
-						else if(segment.type==="tag"){
-							return h("span", {className: "tag"}, segment.content)
-						}
-						else if(segment.type==="mention"){
-							return h("span", {className: "mention"}, segment.content)
-						}
-						else if(segment.type==="text"){
-							return segment.content
-						}
-					})
-					// console.group(line);
-					// for(let segment of segments){
-					//   console.log([segment.type, segment.content]);
-					// }
-					// console.groupEnd();
-					return h("p", {}, children);
+				
+				break;
+			case "ArrowRight":
+				if(selection[0]==selection[1]){
+					setSelection(sel=>[sel[0]+1, sel[1]+1])
+				}else{
+					setSelection(sel=>[sel[1], sel[1]])
+				}
+				break;
+
+			case "ArrowUp":
+				
+				break;
+
+			case "ArrowDown":
+				break;
+		
+			default:
+				break;
+		}
+
+
+		if(e.key.length==1){
+
+		}
+	};
+	
+	function onPaste(e) {
+		e.preventDefault();
+	}
+	
+	function onDrop(e) {
+		e.preventDefault();
+	}
+	
+	function onSelectionHasChanged(e) {
+		e.preventDefault();
+
+	}
+	
+	function onSelectionChange(e) {
+		e.preventDefault();
+		const selectionRange = getCharacterSelection(editorDiv.current);
+		setSelection(sel=>[selectionRange[0], selectionRange[1]]);
+	}
+		
+	return h("div",{},
+		h("div", {},
+			h("div", {},
+				"cursor position",
+				h("input", {type:"number", value:selection?selection[0]:-1, onChange: e=>setSelection([parseInt(e.target.value), parseInt(e.target.value)])}),
+
+			),
+			h("div", {},
+				"selection range",
+				h("input", {type:"number", value:selection?selection[0]:-1, onChange: e=>setSelection([parseInt(e.target.value), selection[1]])}),
+				h("input", {type:"number", value:selection?selection[1]:-1, onChange: e=>setSelection([selection[0], parseInt(e.target.value)])})
+			),
+		),
+		h("div",{
+			id:"editor",
+			ref: editorDiv,
+			className:"editor",
+			contentEditable:true,
+			onKeyDown:onKeyDown,
+			onPaste: onPaste,
+			onSelect:onSelectionHasChanged,
+			onDrop: onDrop,
+			suppressContentEditableWarning: true
+		},
+			parseMarkdown(source).map(block=>{
+				const children = block.content.map(segment=>{
+					if(segment.type==="strong"){
+						return h("strong", {}, segment.content)
+					}
+					else if(segment.type==="emphasis"){
+						return h("em", {},segment.content)
+					}
+					else if(segment.type==="tag"){
+						return h("span", {className: "tag"}, segment.content)
+					}
+					else if(segment.type==="mention"){
+						return h("span", {className: "mention"}, segment.content)
+					}
+					else if(segment.type==="text"){
+						return segment.content
+					}
+				})
+
+				if (block.type==="h1") {
+					return h("h1",{}, children);
+				}
+				else if(block.type==="p") {
+
+					return h("p", {}, children)
 				}
 			})
 		)
