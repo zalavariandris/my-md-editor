@@ -10,6 +10,7 @@ type DocumentBlock = {
 
 type DocumentModel = DocumentBlock[];
 
+
 function segmentMarkdownText(text:string):DocumentSegment[] {
 	// Define regex patterns for different markdown elements
 	const strongRegexp = /\*\*([^*]+)\*\*/g;
@@ -65,6 +66,13 @@ function segmentMarkdownText(text:string):DocumentSegment[] {
 	return segments;
 }
 
+/**
+ * Parses a Markdown string and converts it into a structured document model.
+ *
+ * @param {string} source - The Markdown source string to be parsed.
+ * @returns {DocumentModel} The parsed document model representing the structured
+ *                          content of the input Markdown.
+ */
 function parseMarkdown(source:string): DocumentModel{
     const doc:DocumentModel = source.split("\n").map(line=>{
         if(line.startsWith("# ")){

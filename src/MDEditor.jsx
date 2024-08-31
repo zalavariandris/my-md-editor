@@ -3,11 +3,24 @@ import rangy from "rangy"
 import './editor.css'
 import documentStore from "./documentStore.js"
 import {parseMarkdown, segmentMarkdownText} from "./markdown_helpers.ts"
+import { current } from 'immer'
 
 const h = createElement
 
-function selectCharacters(root, start, end){
+function selectCharacters(root, selection)
+{
 	console.assert(root?true:false);
+	if(!selection){
+		window.getSelection().removeAllRanges();
+		return;
+	}
+
+	let start = selection.start;
+	let end = selection.end;
+	if(start>end){
+		[start, end] = [end, start];
+	}
+
 	let startNode = null;
 	let startOffset = 0;
 	let endNode = null;
@@ -41,17 +54,27 @@ function selectCharacters(root, start, end){
 			endOffset = end-prevPos;
 			break;
 		}
+
 	}
 
 	//select the range
-	console.log(startNode, startOffset, endNode, endOffset)
 	let range = new Range();
 	try {
 		range.setStart(startNode, startOffset);
 		range.setEnd(endNode, endOffset);
-	
+
+		const currentSelection = document.getSelection();
+		const currentRange = currentSelection.getRangeAt(0)
+		if(currentRange.startContainer == range.startContainer &&
+			currentRange.startOffset == range.startOffset &&
+			currentRange.endContainer == range.endContainer &&
+			currentRange.endOffset == range.endOffset
+		) {
+			return;
+		}
 		document.getSelection().removeAllRanges()
 		document.getSelection().addRange(range);
+
 	} catch (error) {
 		console.warn("invalid selection range", range);
 	}
@@ -60,7 +83,12 @@ window.selectCharacters = selectCharacters
 
 function getCharacterSelection(root){
 	console.assert(root?true:false);
-	const selectionRange = window.getSelection().getRangeAt(0);
+	const currentSelection = window.getSelection();
+	if(!currentSelection.rangeCount){
+		return null;
+	}
+	const selectionRange = currentSelection.getRangeAt(0);
+
 	let start = undefined;
 	let end = undefined;
 
@@ -87,13 +115,18 @@ function getCharacterSelection(root){
 			start = prevPos+selectionRange.startOffset;
 		}
 
-		if(selectionRange.endContainer == node){
+		if(!end && selectionRange.endContainer == node){
 			end = prevPos+selectionRange.endOffset;
-			break
+			
 		}
+
+		if(end!=undefined && start!=undefined){
+			break;
+		}
+		
 	}
 
-	return [start, end];
+	return {start, end};
 }
 window.getCharacterSelection = getCharacterSelection;
 
@@ -105,46 +138,46 @@ function MDEditor() {
 	const [selection, setSelection] = useState([0,0]);
 	
 	useEffect(()=>{
-		selectCharacters(editorDiv.current, selection[0], selection[1]);
-	}, selection);
+		selectCharacters(editorDiv.current, selection);
+	}, [selection]);
 	
 	useEffect(()=>{
-		console.log("hey")
 		document.addEventListener("selectionchange", onSelectionChange);
 	}, []);
 	
 	function onKeyDown(e) {
-		console.log(e.key);
 		e.preventDefault();
 
 		switch (e.key) {
 			case "ArrowLeft":
-				if(selection[0]==selection[1]){
-					setSelection(sel=>[sel[0]-1, sel[1]-1])
+				if(selection.start==selection.end){
+					setSelection(sel=>{
+						return {start: sel.start-1, end: sel.end-1};
+					});
 				}else{
-					setSelection(sel=>[sel[0], sel[0]])
+					setSelection(sel=>{
+						return {start: sel.start, end: sel.start};
+					});
 				}
-				
 				break;
 			case "ArrowRight":
 				if(selection[0]==selection[1]){
-					setSelection(sel=>[sel[0]+1, sel[1]+1])
+					setSelection(sel=>{
+						return {start: sel.start+1, end: sel.end+1};
+					});
 				}else{
-					setSelection(sel=>[sel[1], sel[1]])
+					setSelection(sel=>{
+						return {start: sel.start, end: sel.end};
+					});
 				}
 				break;
-
-			case "ArrowUp":
-				
+			case "ArrowUp":		
 				break;
-
 			case "ArrowDown":
 				break;
-		
 			default:
 				break;
 		}
-
 
 		if(e.key.length==1){
 
@@ -161,13 +194,17 @@ function MDEditor() {
 	
 	function onSelectionHasChanged(e) {
 		e.preventDefault();
-
+		// setSelection(sel=>{
+		// 	const selectionRange = getCharacterSelection(editorDiv.current);
+		// 	return [selectionRange[0], selectionRange[1]];
+		// });
 	}
 	
 	function onSelectionChange(e) {
 		e.preventDefault();
-		const selectionRange = getCharacterSelection(editorDiv.current);
-		setSelection(sel=>[selectionRange[0], selectionRange[1]]);
+		setSelection(sel=>{
+			return getCharacterSelection(editorDiv.current);
+		});
 	}
 		
 	return h("div",{},
