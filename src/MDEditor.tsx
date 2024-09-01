@@ -7,11 +7,20 @@ import { current } from 'immer'
 
 const h = createElement
 
-function selectCharacters(root, selection)
+type SelectionRange = {
+	start: Number;
+	end: Number;
+}
+
+function selectCharacters(root: HTMLElement, selection: SelectionRange|null)
 {
 	console.assert(root?true:false);
 	if(!selection){
-		window.getSelection().removeAllRanges();
+		const currentSelection = window.getSelection();
+		if(currentSelection){
+			currentSelection.removeAllRanges();
+		}
+		
 		return;
 	}
 
@@ -33,7 +42,10 @@ function selectCharacters(root, selection)
 	let prevPos = position;
 	while(stack.length>0)
 	{
-		const node = stack.shift();
+		const node:ChildNode|undefined = stack.shift();
+		if(!node){
+			break;
+		}
 		if (node.nodeType==Node.TEXT_NODE) {
 			prevPos = position;
 			position+=node.length;
