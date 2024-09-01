@@ -1,18 +1,16 @@
 import { useState, useRef, useSyncExternalStore, createElement, useEffect } from 'react'
-import rangy from "rangy"
 import './editor.css'
-import documentStore from "./documentStore.js"
 import {parseMarkdown, segmentMarkdownText} from "./markdown_helpers.ts"
 import { current } from 'immer'
 
 const h = createElement
 
-type SelectionRange = {
-	start: Number;
-	end: Number;
+type TextRange = {
+	start: number;
+	end: number;
 }
 
-function selectCharacters(root: HTMLElement, selection: SelectionRange|null)
+function selectCharacters(root: HTMLElement, selection: TextRange|null)
 {
 	console.assert(root?true:false);
 	if(!selection){
@@ -47,9 +45,12 @@ function selectCharacters(root: HTMLElement, selection: SelectionRange|null)
 			break;
 		}
 		if (node.nodeType==Node.TEXT_NODE) {
+			const textNode = node as Text;
 			prevPos = position;
-			position+=node.length;
-			if(node.nextElementSibling==undefined && window.getComputedStyle(node.parentNode).display==="block"){
+			position+=textNode.length;
+			if (textNode.nextElementSibling==undefined && 
+				textNode.parentElement && 
+				window.getComputedStyle(textNode.parentElement).display==="block") {
 				position+=1;
 			}
 		}
@@ -91,7 +92,6 @@ function selectCharacters(root: HTMLElement, selection: SelectionRange|null)
 		console.warn("invalid selection range", range);
 	}
 }
-window.selectCharacters = selectCharacters
 
 function getCharacterSelection(root){
 	console.assert(root?true:false);
@@ -140,17 +140,18 @@ function getCharacterSelection(root){
 
 	return {start, end};
 }
-window.getCharacterSelection = getCharacterSelection;
 
 function MDEditor() {
 	const editorDiv = useRef(null);
 	const [source, setSource] = useState(`# My _markdown_ editor\n`+
 										`This is a **markdown** #richtext editor.\n`+
 										`support **strong**, _emphasis_, #tags and @mentions.\n`)
-	const [selection, setSelection] = useState([0,0]);
+	const [selection, setSelection] = useState({start: 0,end: 0});
 	
 	useEffect(()=>{
-		selectCharacters(editorDiv.current, selection);
+		if(editorDiv.current){
+			selectCharacters(editorDiv.current, selection);
+		}
 	}, [selection]);
 	
 	useEffect(()=>{
