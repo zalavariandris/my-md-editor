@@ -7,8 +7,9 @@ const h = createElement
 
 
 type TextSelection = {
-	anchorOffset: number | null;
-	focusOffset: number | null;
+	start:number, 
+	end:number, 
+	direction:"forward"|"backward"|"none"
 };
 
 function modifyTextSelection(alter:"extend"|"move", direction:"forward"|"backward"|"left"|"right", granularity:"character"|"word"|"line"|"lineboundary") {
@@ -18,13 +19,8 @@ function modifyTextSelection(alter:"extend"|"move", direction:"forward"|"backwar
 function setCharacterSelection(root: HTMLElement, selection: TextSelection)
 {
 	console.assert(root?true:false);
-	if(selection.anchorOffset == null || selection.focusOffset == null) {
-		const currentSelection = window.getSelection();
-		if(!currentSelection)
-			return;
-
-		currentSelection.removeAllRanges();
-		return;
+	if (selection.start < selection.end) {
+		selection.start = selection.end;
 	}
 
 	let anchorNode = null;
@@ -59,11 +55,11 @@ function setCharacterSelection(root: HTMLElement, selection: TextSelection)
 
 		if (!anchorNode && position > anchorOffset) {
 			anchorNode = node;
-			anchorOffset = selection.anchorOffset-prevPos;
+			anchorOffset = selection.start-prevPos;
 		}
 		if (!focusNode && position > focusOffset) {
 			focusNode = node;
-			focusOffset = selection.focusOffset-prevPos;
+			focusOffset = selection.end-prevPos;
 		}
 
 		if(anchorNode && focusNode){
@@ -75,37 +71,38 @@ function setCharacterSelection(root: HTMLElement, selection: TextSelection)
 	//select the range
 	let range = new Range();
 	if(focusNode && anchorNode){
-		range.setStart(focusNode, focusOffset);
-		range.setEnd(anchorNode, anchorOffset);
-	}
-	try {
-
-
-		const currentSelection = document.getSelection();
-		const currentRange = currentSelection?.getRangeAt(0);
-		if(currentRange &&
-			currentRange.startContainer == range.startContainer &&
-			currentRange.startOffset == range.startOffset &&
-			currentRange.endContainer == range.endContainer &&
-			currentRange.endOffset == range.endOffset
-		) {
-			return;
+		if(selection.direction == "backward"){
+			range.setEnd(anchorNode, anchorOffset);
+			range.setStart(focusNode, focusOffset);
+		}else{
+			range.setStart(anchorNode, anchorOffset);
+			range.setEnd(focusNode, focusOffset);
 		}
 
-		currentSelection?.removeAllRanges()
-		currentSelection?.addRange(range);
-
-	} catch (error) {
-		console.warn("invalid selection range", range);
 	}
+
+	const currentSelection = document.getSelection();
+	const currentRange = currentSelection?.getRangeAt(0);
+	if(currentRange &&
+		currentRange.startContainer == range.startContainer &&
+		currentRange.startOffset == range.startOffset &&
+		currentRange.endContainer == range.endContainer &&
+		currentRange.endOffset == range.endOffset
+	) {
+		return;
+	}
+
+	currentSelection?.removeAllRanges()
+	currentSelection?.addRange(range);
 }
 
-function getCharacterSelection(root:HTMLElement):TextSelection{
+function getCharacterSelection(root:HTMLElement):TextSelection|null{
 	console.assert(root?true:false);
 	const currentSelection = window.getSelection();
 	if(!currentSelection || !currentSelection.rangeCount){
-		return {ranges: []};
+		return null;
 	}
+
 	const selectionRange = currentSelection.getRangeAt(0);
 
 	let start = undefined;
@@ -145,10 +142,10 @@ function getCharacterSelection(root:HTMLElement):TextSelection{
 	}
 
 	if(start==undefined || end==undefined){
-		return {ranges: []};
+		return null;
 	}
 
-	return {ranges: [{start, end}]};
+	return {start, end, direction: start<end ? "backward" : "forward"};
 }
 
 function MDEditor() {
@@ -156,7 +153,7 @@ function MDEditor() {
 	const [source, setSource] = useState<string>(`# My _markdown_ editor\n`+
 										`This is a **markdown** #richtext editor.\n`+
 										`support **strong**, _emphasis_, #tags and @mentions.\n`)
-	const [selection, setSelection] = useState<TextSelection>({ranges: [{start: 0, end: 0}]});
+	const [selection, setSelection] = useState<TextSelection|null>({start: 0, end: 0, direction:"forward"});
 	
 	useEffect(()=>{
 		if(editorDiv.current){
