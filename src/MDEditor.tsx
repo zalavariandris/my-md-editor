@@ -8,9 +8,9 @@ const h = createElement
 type TextRange = {
 	start: number;
 	end: number;
-}
+};
 
-function selectCharacters(root: HTMLElement, selection: TextRange|null)
+function selectCharacters(root: HTMLElement, selection: TextRange | undefined)
 {
 	console.assert(root?true:false);
 	if(!selection){
@@ -72,31 +72,36 @@ function selectCharacters(root: HTMLElement, selection: TextRange|null)
 
 	//select the range
 	let range = new Range();
-	try {
+	if(startNode && endNode){
 		range.setStart(startNode, startOffset);
 		range.setEnd(endNode, endOffset);
+	}
+	try {
+
 
 		const currentSelection = document.getSelection();
-		const currentRange = currentSelection.getRangeAt(0)
-		if(currentRange.startContainer == range.startContainer &&
+		const currentRange = currentSelection?.getRangeAt(0);
+		if(currentRange &&
+			currentRange.startContainer == range.startContainer &&
 			currentRange.startOffset == range.startOffset &&
 			currentRange.endContainer == range.endContainer &&
 			currentRange.endOffset == range.endOffset
 		) {
 			return;
 		}
-		document.getSelection().removeAllRanges()
-		document.getSelection().addRange(range);
+
+		currentSelection?.removeAllRanges()
+		currentSelection?.addRange(range);
 
 	} catch (error) {
 		console.warn("invalid selection range", range);
 	}
 }
 
-function getCharacterSelection(root){
+function getCharacterSelection(root:HTMLElement){
 	console.assert(root?true:false);
 	const currentSelection = window.getSelection();
-	if(!currentSelection.rangeCount){
+	if(!currentSelection || !currentSelection.rangeCount){
 		return null;
 	}
 	const selectionRange = currentSelection.getRangeAt(0);
@@ -111,11 +116,11 @@ function getCharacterSelection(root){
 	while(stack.length>0)
 	{
 		prevPos = position;
-		const node = stack.shift();
+		const node:Node = stack.shift()!;
 		if (node.nodeType==Node.TEXT_NODE) {
-			
-			position+=node.length;
-			if(node.nextElementSibling==undefined && window.getComputedStyle(node.parentNode).display==="block"){
+			const textNode = node as Text;
+			position+=textNode.length;
+			if(textNode.nextElementSibling==undefined && textNode.parentElement && window.getComputedStyle(textNode.parentElement).display==="block"){
 				position+=1;
 			}
 		}
@@ -143,10 +148,10 @@ function getCharacterSelection(root){
 
 function MDEditor() {
 	const editorDiv = useRef(null);
-	const [source, setSource] = useState(`# My _markdown_ editor\n`+
+	const [source, setSource] = useState<string>(`# My _markdown_ editor\n`+
 										`This is a **markdown** #richtext editor.\n`+
 										`support **strong**, _emphasis_, #tags and @mentions.\n`)
-	const [selection, setSelection] = useState({start: 0,end: 0});
+	const [selection, setSelection] = useState<TextRange|undefined>({start: 0,end: 0} as TextRange);
 	
 	useEffect(()=>{
 		if(editorDiv.current){
@@ -158,28 +163,41 @@ function MDEditor() {
 		document.addEventListener("selectionchange", onSelectionChange);
 	}, []);
 	
-	function onKeyDown(e) {
+	function onKeyDown(e:KeyboardEvent) {
 		e.preventDefault();
+		if(!selection){
+			return;
+		}
 
 		switch (e.key) {
 			case "ArrowLeft":
 				if(selection.start==selection.end){
 					setSelection(sel=>{
+						if(!sel){
+							return;
+						}
 						return {start: sel.start-1, end: sel.end-1};
 					});
 				}else{
 					setSelection(sel=>{
+						if(!sel){
+							return;
+						}
 						return {start: sel.start, end: sel.start};
 					});
 				}
 				break;
 			case "ArrowRight":
-				if(selection[0]==selection[1]){
+				if(selection.start==selection.end){
 					setSelection(sel=>{
+						if(!sel)
+							return undefined;
 						return {start: sel.start+1, end: sel.end+1};
 					});
 				}else{
 					setSelection(sel=>{
+						if(!sel)
+							return undefined;
 						return {start: sel.start, end: sel.end};
 					});
 				}
@@ -197,15 +215,15 @@ function MDEditor() {
 		}
 	};
 	
-	function onPaste(e) {
+	function onPaste(e:any) {
 		e.preventDefault();
 	}
 	
-	function onDrop(e) {
+	function onDrop(e:any) {
 		e.preventDefault();
 	}
 	
-	function onSelectionHasChanged(e) {
+	function onSelectionHasChanged(e: any) {
 		e.preventDefault();
 		// setSelection(sel=>{
 		// 	const selectionRange = getCharacterSelection(editorDiv.current);
@@ -213,10 +231,12 @@ function MDEditor() {
 		// });
 	}
 	
-	function onSelectionChange(e) {
+	function onSelectionChange(e: any) {
 		e.preventDefault();
 		setSelection(sel=>{
-			return getCharacterSelection(editorDiv.current);
+			if(editorDiv.current){
+				return getCharacterSelection(editorDiv.current);
+			}
 		});
 	}
 		
@@ -224,13 +244,30 @@ function MDEditor() {
 		h("div", {},
 			h("div", {},
 				"cursor position",
-				h("input", {type:"number", value:selection?selection[0]:-1, onChange: e=>setSelection([parseInt(e.target.value), parseInt(e.target.value)])}),
+				h("input", {type:"number", value:selection?selection.start : "no selection", onChange: e=>setSelection({start: parseInt(e.target.value), end: parseInt(e.target.value)})}),
 
 			),
 			h("div", {},
 				"selection range",
-				h("input", {type:"number", value:selection?selection[0]:-1, onChange: e=>setSelection([parseInt(e.target.value), selection[1]])}),
-				h("input", {type:"number", value:selection?selection[1]:-1, onChange: e=>setSelection([selection[0], parseInt(e.target.value)])})
+				h("input", {
+					type:"number", 
+					value:selection?selection.start : "no selection", 
+					onChange: e=>{
+						if(!selection)
+							return;
+						setSelection({start: parseInt(e.target.value), end: selection.end});
+					}
+				}),
+				h("input", {
+					type:"number", 
+					value:selection?selection.end:-1, 
+					onChange: e=>{
+						if(!selection)
+							return;
+						setSelection({start: selection.start, end: parseInt(e.target.value)});
+
+					}
+				}
 			),
 		),
 		h("div",{
