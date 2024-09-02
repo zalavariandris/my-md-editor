@@ -5,39 +5,32 @@ import { current } from 'immer'
 
 const h = createElement
 
-type TextRange = {
-	start: number;
-	end: number;
-};
 
 type TextSelection = {
-	ranges: TextRange[]
+	anchorOffset: number | null;
+	focusOffset: number | null;
 };
 
-function clearCharacterSelection(){
-	window.getSelection()?.removeAllRanges();
+function modifyTextSelection(alter:"extend"|"move", direction:"forward"|"backward"|"left"|"right", granularity:"character"|"word"|"line"|"lineboundary") {
+
 }
 
 function setCharacterSelection(root: HTMLElement, selection: TextSelection)
 {
 	console.assert(root?true:false);
-	if(selection.ranges.length==0){
-		window.getSelection()?.removeAllRanges();
+	if(selection.anchorOffset == null || selection.focusOffset == null) {
+		const currentSelection = window.getSelection();
+		if(!currentSelection)
+			return;
+
+		currentSelection.removeAllRanges();
 		return;
 	}
 
-	const textRange = selection.ranges[0];
-
-	let start = textRange.start;
-	let end = textRange.end;
-	if(start>end){
-		[start, end] = [end, start];
-	}
-
-	let startNode = null;
-	let startOffset = 0;
-	let endNode = null;
-	let endOffset = 0;
+	let anchorNode = null;
+	let anchorOffset = 0;
+	let focusNode = null;
+	let focusOffset = 0;
 
 	let stack = [...root.childNodes];
 
@@ -64,13 +57,16 @@ function setCharacterSelection(root: HTMLElement, selection: TextSelection)
 			stack = [...node.childNodes, ...stack];
 		}
 
-		if (!startNode && position > start) {
-			startNode = node;
-			startOffset = start-prevPos;
+		if (!anchorNode && position > anchorOffset) {
+			anchorNode = node;
+			anchorOffset = selection.anchorOffset-prevPos;
 		}
-		if (position > end) {
-			endNode = node;
-			endOffset = end-prevPos;
+		if (!focusNode && position > focusOffset) {
+			focusNode = node;
+			focusOffset = selection.focusOffset-prevPos;
+		}
+
+		if(anchorNode && focusNode){
 			break;
 		}
 
@@ -78,9 +74,9 @@ function setCharacterSelection(root: HTMLElement, selection: TextSelection)
 
 	//select the range
 	let range = new Range();
-	if(startNode && endNode){
-		range.setStart(startNode, startOffset);
-		range.setEnd(endNode, endOffset);
+	if(focusNode && anchorNode){
+		range.setStart(focusNode, focusOffset);
+		range.setEnd(anchorNode, anchorOffset);
 	}
 	try {
 
@@ -134,11 +130,11 @@ function getCharacterSelection(root:HTMLElement):TextSelection{
 			stack = [...node.childNodes, ...stack];
 		}
 
-		if(!start && selectionRange.startContainer == node){
+		if(!start!=undefined && selectionRange.startContainer == node){
 			start = prevPos+selectionRange.startOffset;
 		}
 
-		if(!end && selectionRange.endContainer == node){
+		if(!end!=undefined && selectionRange.endContainer == node){
 			end = prevPos+selectionRange.endOffset;
 			
 		}
@@ -148,7 +144,7 @@ function getCharacterSelection(root:HTMLElement):TextSelection{
 		}
 	}
 
-	if(!start || !end){
+	if(start==undefined || end==undefined){
 		return {ranges: []};
 	}
 
@@ -171,6 +167,13 @@ function MDEditor() {
 	useEffect(()=>{
 		document.addEventListener("selectionchange", onSelectionChange);
 	}, []);
+
+	function onSelectionChange(e: any) {
+		e.preventDefault();
+		if(editorDiv.current){
+			setSelection(getCharacterSelection(editorDiv.current));
+		}
+	}
 	
 	function onKeyDown(e:KeyboardEvent) {
 		e.preventDefault();
@@ -182,10 +185,10 @@ function MDEditor() {
 
 		let msg;
 		const IsCollapsed = textRange.start==textRange.end;
-		function extendStart(r:TextRange){
+		function extendLeft(r:TextRange){
 			return {start: r.start-1, end: r.end};
 		}
-		function extendEnd(r:TextRange){
+		function extendRight(r:TextRange){
 			return {start: r.start, end: r.end+1};
 		}
 		function moveLeft(sel:TextRange){
@@ -205,6 +208,11 @@ function MDEditor() {
 		if(e.key.length==1){
 
 		}
+		else if(e.key == "ArrowLeft" && e.shiftKey){
+			setSelection(sel=> {
+				return {ranges: sel.ranges.map(r=>extendLeft(r))};
+			});
+		}
 		else if(e.key == "ArrowLeft"){
 			if(IsCollapsed){
 				setSelection(sel=> {
@@ -215,6 +223,11 @@ function MDEditor() {
 					return {ranges: sel.ranges.map(r=>collapseLeft(r))};
 				});
 			}
+		}
+		else if(e.key == "ArrowRight" && e.shiftKey){
+			setSelection(sel=> {
+				return {ranges: sel.ranges.map(r=>extendRight(r))};
+			});
 		}
 		else if(e.key == "ArrowRight"){
 			if(IsCollapsed){
@@ -245,18 +258,9 @@ function MDEditor() {
 	
 	function onSelectionHasChanged(e: any) {
 		e.preventDefault();
-		// setSelection(sel=>{
-		// 	const selectionRange = getCharacterSelection(editorDiv.current);
-		// 	return [selectionRange[0], selectionRange[1]];
-		// });
 	}
 	
-	function onSelectionChange(e: any) {
-		e.preventDefault();
-		if(editorDiv.current){
-			setSelection(getCharacterSelection(editorDiv.current));
-		}
-	}
+
 		
 	return h("div",{},
 		h("div", {},
@@ -264,7 +268,7 @@ function MDEditor() {
 				"cursor position",
 				h("input", {
 					type:"number", 
-					value:selection.ranges.length>0 ? selection.ranges[0].start : "no selection", 
+					value:selection.ranges.length>0 ? selection.ranges[0].start : 0, 
 					onChange: e=>setSelection({ranges: selection.ranges.map(r=>{
 							return {start: parseInt(e.target.value), end: parseInt(e.target.value)}
 						})
@@ -276,7 +280,7 @@ function MDEditor() {
 				"selection range",
 				h("input", {
 					type:"number", 
-					value:selection.ranges.length>0 ? selection.ranges[0].start : "no selection", 
+					value:selection.ranges.length>0 ? selection.ranges[0].start : 0, 
 					onChange: e=>{
 						if(!selection)
 							return;
@@ -289,7 +293,7 @@ function MDEditor() {
 				}),
 				h("input", {
 					type:"number", 
-					value:selection.ranges.length>0 ? selection.ranges[0].end : "no selection", 
+					value:selection.ranges.length>0 ? selection.ranges[0].end : 0, 
 					onChange: e=>{
 						if(!selection)
 							return;
