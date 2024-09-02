@@ -10,20 +10,26 @@ type TextRange = {
 	end: number;
 };
 
-function selectCharacters(root: HTMLElement, selection: TextRange | undefined)
+type TextSelection = {
+	ranges: TextRange[]
+};
+
+function clearCharacterSelection(){
+	window.getSelection()?.removeAllRanges();
+}
+
+function setCharacterSelection(root: HTMLElement, selection: TextSelection)
 {
 	console.assert(root?true:false);
-	if(!selection){
-		const currentSelection = window.getSelection();
-		if(currentSelection){
-			currentSelection.removeAllRanges();
-		}
-		
+	if(selection.ranges.length==0){
+		window.getSelection()?.removeAllRanges();
 		return;
 	}
 
-	let start = selection.start;
-	let end = selection.end;
+	const textRange = selection.ranges[0];
+
+	let start = textRange.start;
+	let end = textRange.end;
 	if(start>end){
 		[start, end] = [end, start];
 	}
@@ -98,11 +104,11 @@ function selectCharacters(root: HTMLElement, selection: TextRange | undefined)
 	}
 }
 
-function getCharacterSelection(root:HTMLElement){
+function getCharacterSelection(root:HTMLElement):TextSelection{
 	console.assert(root?true:false);
 	const currentSelection = window.getSelection();
 	if(!currentSelection || !currentSelection.rangeCount){
-		return null;
+		return {ranges: []};
 	}
 	const selectionRange = currentSelection.getRangeAt(0);
 
@@ -140,10 +146,13 @@ function getCharacterSelection(root:HTMLElement){
 		if(end!=undefined && start!=undefined){
 			break;
 		}
-		
 	}
 
-	return {start, end};
+	if(!start || !end){
+		return {ranges: []};
+	}
+
+	return {ranges: [{start, end}]};
 }
 
 function MDEditor() {
@@ -151,11 +160,11 @@ function MDEditor() {
 	const [source, setSource] = useState<string>(`# My _markdown_ editor\n`+
 										`This is a **markdown** #richtext editor.\n`+
 										`support **strong**, _emphasis_, #tags and @mentions.\n`)
-	const [selection, setSelection] = useState<TextRange|undefined>({start: 0,end: 0} as TextRange);
+	const [selection, setSelection] = useState<TextSelection>({ranges: [{start: 0, end: 0}]});
 	
 	useEffect(()=>{
 		if(editorDiv.current){
-			selectCharacters(editorDiv.current, selection);
+			setCharacterSelection(editorDiv.current, selection!);
 		}
 	}, [selection]);
 	
@@ -165,52 +174,63 @@ function MDEditor() {
 	
 	function onKeyDown(e:KeyboardEvent) {
 		e.preventDefault();
-		if(!selection){
+		if(selection.ranges.length==0){
 			return;
 		}
 
-		switch (e.key) {
-			case "ArrowLeft":
-				if(selection.start==selection.end){
-					setSelection(sel=>{
-						if(!sel){
-							return;
-						}
-						return {start: sel.start-1, end: sel.end-1};
-					});
-				}else{
-					setSelection(sel=>{
-						if(!sel){
-							return;
-						}
-						return {start: sel.start, end: sel.start};
-					});
-				}
-				break;
-			case "ArrowRight":
-				if(selection.start==selection.end){
-					setSelection(sel=>{
-						if(!sel)
-							return undefined;
-						return {start: sel.start+1, end: sel.end+1};
-					});
-				}else{
-					setSelection(sel=>{
-						if(!sel)
-							return undefined;
-						return {start: sel.start, end: sel.end};
-					});
-				}
-				break;
-			case "ArrowUp":		
-				break;
-			case "ArrowDown":
-				break;
-			default:
-				break;
+		const textRange = selection.ranges[0];
+
+		let msg;
+		const IsCollapsed = textRange.start==textRange.end;
+		function extendStart(r:TextRange){
+			return {start: r.start-1, end: r.end};
+		}
+		function extendEnd(r:TextRange){
+			return {start: r.start, end: r.end+1};
+		}
+		function moveLeft(sel:TextRange){
+			return {start: sel.start-1, end: sel.start-1};
+		}
+		function moveRight(sel:TextRange){
+			return {start: sel.start+1, end: sel.start+1};
+
+		}
+		function collapseLeft(sel:TextRange){
+			return {start: sel.start, end: sel.start};
+		}
+		function collapseRight(sel:TextRange){
+			return {start: sel.end, end: sel.end};
 		}
 
 		if(e.key.length==1){
+
+		}
+		else if(e.key == "ArrowLeft"){
+			if(IsCollapsed){
+				setSelection(sel=> {
+					return {ranges: sel.ranges.map(r=>moveLeft(r))};
+				});
+			}else{
+				setSelection(sel=> {
+					return {ranges: sel.ranges.map(r=>collapseLeft(r))};
+				});
+			}
+		}
+		else if(e.key == "ArrowRight"){
+			if(IsCollapsed){
+				setSelection(sel=> {
+					return {ranges: sel.ranges.map(r=>moveRight(r))};
+				});
+			}else{
+				setSelection(sel=> {
+					return {ranges: sel.ranges.map(r=>collapseRight(r))};
+				});
+			}
+		}
+		else if(e.key == "ArrowUp"){
+
+		}
+		else if(e.key == "ArrowDown"){
 
 		}
 	};
@@ -233,41 +253,53 @@ function MDEditor() {
 	
 	function onSelectionChange(e: any) {
 		e.preventDefault();
-		setSelection(sel=>{
-			if(editorDiv.current){
-				return getCharacterSelection(editorDiv.current);
-			}
-		});
+		if(editorDiv.current){
+			setSelection(getCharacterSelection(editorDiv.current));
+		}
 	}
 		
 	return h("div",{},
 		h("div", {},
 			h("div", {},
 				"cursor position",
-				h("input", {type:"number", value:selection?selection.start : "no selection", onChange: e=>setSelection({start: parseInt(e.target.value), end: parseInt(e.target.value)})}),
+				h("input", {
+					type:"number", 
+					value:selection.ranges.length>0 ? selection.ranges[0].start : "no selection", 
+					onChange: e=>setSelection({ranges: selection.ranges.map(r=>{
+							return {start: parseInt(e.target.value), end: parseInt(e.target.value)}
+						})
+					})
+				}),
 
 			),
 			h("div", {},
 				"selection range",
 				h("input", {
 					type:"number", 
-					value:selection?selection.start : "no selection", 
+					value:selection.ranges.length>0 ? selection.ranges[0].start : "no selection", 
 					onChange: e=>{
 						if(!selection)
 							return;
-						setSelection({start: parseInt(e.target.value), end: selection.end});
+						setSelection({
+							ranges: selection.ranges.map(r=>{
+								return {start: parseInt(e.target.value), end: r.end};
+							})
+						});
 					}
 				}),
 				h("input", {
 					type:"number", 
-					value:selection?selection.end:-1, 
+					value:selection.ranges.length>0 ? selection.ranges[0].end : "no selection", 
 					onChange: e=>{
 						if(!selection)
 							return;
-						setSelection({start: selection.start, end: parseInt(e.target.value)});
-
+						setSelection({
+							ranges: selection.ranges.map(r=>{
+								return {start: r.start, end: parseInt(e.target.value)};
+							})
+						});
 					}
-				}
+				}),
 			),
 		),
 		h("div",{
