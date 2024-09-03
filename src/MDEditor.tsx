@@ -3,150 +3,23 @@ import './editor.css'
 import {parseMarkdown, segmentMarkdownText} from "./markdown_helpers.ts"
 import { current } from 'immer'
 
+import type { TextSelection } from './TextSelection.ts'
+import {setTextSelection, getTextSelection, modifyTextSelection, collapseTextSelectionToStart, collapseTextSelectionToEnd} from "./TextSelection.ts"
 const h = createElement
 
 
-type TextSelection = {
-	start:number, 
-	end:number, 
-	direction:"forward"|"backward"|"none"
-};
+function insertTextAtPos(originalString:string, textToInsert:string, position:number) {
+	// Ensure the position is within the bounds of the string
+	if (position < 0) {
+		position = 0;
+	} else if (position > originalString.length) {
+		position = originalString.length;
+	}
 
-function modifyTextSelection(alter:"extend"|"move", direction:"forward"|"backward"|"left"|"right", granularity:"character"|"word"|"line"|"lineboundary") {
-
+	// Insert the text by slicing the original string and concatenating
+	return originalString.slice(0, position) + textToInsert + originalString.slice(position);
 }
 
-function setCharacterSelection(root: HTMLElement, selection: TextSelection)
-{
-	console.assert(root?true:false);
-	if (selection.start < selection.end) {
-		selection.start = selection.end;
-	}
-
-	let anchorNode = null;
-	let anchorOffset = 0;
-	let focusNode = null;
-	let focusOffset = 0;
-
-	let stack = [...root.childNodes];
-
-	
-	let position = 0;
-	let prevPos = position;
-	while(stack.length>0)
-	{
-		const node:ChildNode|undefined = stack.shift();
-		if(!node){
-			break;
-		}
-		if (node.nodeType==Node.TEXT_NODE) {
-			const textNode = node as Text;
-			prevPos = position;
-			position+=textNode.length;
-			if (textNode.nextElementSibling==undefined && 
-				textNode.parentElement && 
-				window.getComputedStyle(textNode.parentElement).display==="block") {
-				position+=1;
-			}
-		}
-		else {
-			stack = [...node.childNodes, ...stack];
-		}
-
-		if (!anchorNode && position > anchorOffset) {
-			anchorNode = node;
-			anchorOffset = selection.start-prevPos;
-		}
-		if (!focusNode && position > focusOffset) {
-			focusNode = node;
-			focusOffset = selection.end-prevPos;
-		}
-
-		if(anchorNode && focusNode){
-			break;
-		}
-
-	}
-
-	//select the range
-	let range = new Range();
-	if(focusNode && anchorNode){
-		if(selection.direction == "backward"){
-			range.setEnd(anchorNode, anchorOffset);
-			range.setStart(focusNode, focusOffset);
-		}else{
-			range.setStart(anchorNode, anchorOffset);
-			range.setEnd(focusNode, focusOffset);
-		}
-
-	}
-
-	const currentSelection = document.getSelection();
-	const currentRange = currentSelection?.getRangeAt(0);
-	if(currentRange &&
-		currentRange.startContainer == range.startContainer &&
-		currentRange.startOffset == range.startOffset &&
-		currentRange.endContainer == range.endContainer &&
-		currentRange.endOffset == range.endOffset
-	) {
-		return;
-	}
-
-	currentSelection?.removeAllRanges()
-	currentSelection?.addRange(range);
-}
-
-function getCharacterSelection(root:HTMLElement):TextSelection|null{
-	console.assert(root?true:false);
-	const currentSelection = window.getSelection();
-	if(!currentSelection || !currentSelection.rangeCount){
-		return null;
-	}
-
-	const selectionRange = currentSelection.getRangeAt(0);
-
-	let start = undefined;
-	let end = undefined;
-
-	let stack = [...root.childNodes]
-
-	let prevPos = 0;
-	let position = 0;
-	while(stack.length>0)
-	{
-		prevPos = position;
-		const node:Node = stack.shift()!;
-		if (node.nodeType==Node.TEXT_NODE) {
-			const textNode = node as Text;
-			position+=textNode.length;
-			if(textNode.nextElementSibling==undefined && textNode.parentElement && window.getComputedStyle(textNode.parentElement).display==="block"){
-				position+=1;
-			}
-		}
-		else {
-			stack = [...node.childNodes, ...stack];
-		}
-
-		if(!start!=undefined && selectionRange.startContainer == node){
-			start = prevPos+selectionRange.startOffset;
-		}
-
-		if(!end!=undefined && selectionRange.endContainer == node){
-			end = prevPos+selectionRange.endOffset;
-			
-		}
-
-		if(end!=undefined && start!=undefined){
-			break;
-		}
-	}
-
-	if(start==undefined || end==undefined){
-		return null;
-	}
-
-	return {start, end, direction: start<end ? "backward" : "forward"};
-}
 
 function MDEditor() {
 	const editorDiv = useRef(null);
@@ -156,8 +29,10 @@ function MDEditor() {
 	const [selection, setSelection] = useState<TextSelection|null>({start: 0, end: 0, direction:"forward"});
 	
 	useEffect(()=>{
-		if(editorDiv.current){
-			setCharacterSelection(editorDiv.current, selection!);
+		if(editorDiv.current) {
+			if(selection){
+				setTextSelection(editorDiv.current, selection);
+			}
 		}
 	}, [selection]);
 	
@@ -168,79 +43,50 @@ function MDEditor() {
 	function onSelectionChange(e: any) {
 		e.preventDefault();
 		if(editorDiv.current){
-			setSelection(getCharacterSelection(editorDiv.current));
+			setSelection(getTextSelection(editorDiv.current));
 		}
 	}
 	
 	function onKeyDown(e:KeyboardEvent) {
 		e.preventDefault();
-		if(selection.ranges.length==0){
+		if(!selection){
 			return;
 		}
 
-		const textRange = selection.ranges[0];
 
-		let msg;
-		const IsCollapsed = textRange.start==textRange.end;
-		function extendLeft(r:TextRange){
-			return {start: r.start-1, end: r.end};
-		}
-		function extendRight(r:TextRange){
-			return {start: r.start, end: r.end+1};
-		}
-		function moveLeft(sel:TextRange){
-			return {start: sel.start-1, end: sel.start-1};
-		}
-		function moveRight(sel:TextRange){
-			return {start: sel.start+1, end: sel.start+1};
+		if (e.key.length==1) {
 
 		}
-		function collapseLeft(sel:TextRange){
-			return {start: sel.start, end: sel.start};
+		else if (e.key == "ArrowLeft" && e.shiftKey) {
+			setSelection(sel=>sel?modifyTextSelection("extend", "backward", "character", sel):sel);
 		}
-		function collapseRight(sel:TextRange){
-			return {start: sel.end, end: sel.end};
-		}
-
-		if(e.key.length==1){
-
-		}
-		else if(e.key == "ArrowLeft" && e.shiftKey){
-			setSelection(sel=> {
-				return {ranges: sel.ranges.map(r=>extendLeft(r))};
+		else if (e.key == "ArrowLeft") {
+			setSelection(sel=>{
+				if(!sel)
+					return sel;
+				if(sel.start==sel.end)
+					return modifyTextSelection("move", "backward", "character", sel)
+				else
+					return collapseTextSelectionToStart(sel);
 			});
 		}
-		else if(e.key == "ArrowLeft"){
-			if(IsCollapsed){
-				setSelection(sel=> {
-					return {ranges: sel.ranges.map(r=>moveLeft(r))};
-				});
-			}else{
-				setSelection(sel=> {
-					return {ranges: sel.ranges.map(r=>collapseLeft(r))};
-				});
-			}
+		else if (e.key == "ArrowRight" && e.shiftKey) {
+			setSelection(sel=>sel?modifyTextSelection("extend", "forward", "character", sel):sel);
 		}
-		else if(e.key == "ArrowRight" && e.shiftKey){
-			setSelection(sel=> {
-				return {ranges: sel.ranges.map(r=>extendRight(r))};
+		else if (e.key == "ArrowRight") {
+			setSelection(sel=>{
+				if(!sel)
+					return sel;
+				if(sel.start==sel.end)
+					return modifyTextSelection("move", "forward", "character", sel)
+				else
+					return collapseTextSelectionToEnd(sel);
 			});
 		}
-		else if(e.key == "ArrowRight"){
-			if(IsCollapsed){
-				setSelection(sel=> {
-					return {ranges: sel.ranges.map(r=>moveRight(r))};
-				});
-			}else{
-				setSelection(sel=> {
-					return {ranges: sel.ranges.map(r=>collapseRight(r))};
-				});
-			}
-		}
-		else if(e.key == "ArrowUp"){
+		else if (e.key == "ArrowUp") {
 
 		}
-		else if(e.key == "ArrowDown"){
+		else if (e.key == "ArrowDown") {
 
 		}
 	};
@@ -257,47 +103,27 @@ function MDEditor() {
 		e.preventDefault();
 	}
 	
-
-		
 	return h("div",{},
 		h("div", {},
-			h("div", {},
-				"cursor position",
-				h("input", {
-					type:"number", 
-					value:selection.ranges.length>0 ? selection.ranges[0].start : 0, 
-					onChange: e=>setSelection({ranges: selection.ranges.map(r=>{
-							return {start: parseInt(e.target.value), end: parseInt(e.target.value)}
-						})
-					})
-				}),
-
-			),
 			h("div", {},
 				"selection range",
 				h("input", {
 					type:"number", 
-					value:selection.ranges.length>0 ? selection.ranges[0].start : 0, 
+					value:selection?.start, 
 					onChange: e=>{
-						if(!selection)
-							return;
-						setSelection({
-							ranges: selection.ranges.map(r=>{
-								return {start: parseInt(e.target.value), end: r.end};
-							})
+						setSelection(sel=>{
+							const pos = parseInt(e.target.value)
+							return sel ? {...sel, start:pos} : {start: pos, end:pos, direction:"forward"};
 						});
 					}
 				}),
 				h("input", {
 					type:"number", 
-					value:selection.ranges.length>0 ? selection.ranges[0].end : 0, 
+					value:selection?.end, 
 					onChange: e=>{
-						if(!selection)
-							return;
-						setSelection({
-							ranges: selection.ranges.map(r=>{
-								return {start: r.start, end: parseInt(e.target.value)};
-							})
+						setSelection(sel=>{
+							const pos = parseInt(e.target.value)
+							return sel ? {...sel, start:pos} : {start: pos, end:pos, direction:"forward"};
 						});
 					}
 				}),
@@ -341,7 +167,11 @@ function MDEditor() {
 					return h("p", {}, children)
 				}
 			})
-		)
+		),
+		h("textarea", {
+			id:"textarea", 
+			onInput: (e:any)=>setSource(e.target.value)
+		}, source)
 	);
 }
 

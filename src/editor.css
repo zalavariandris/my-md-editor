@@ -30,6 +30,7 @@ body{
     padding:0 6ch;
     margin: auto;
     max-width: 64ch;
+    white-space: pre;
 }
 .editor:focus{
     outline: none;

@@ -13,8 +13,8 @@ type DocumentModel = DocumentBlock[];
 
 function segmentMarkdownText(text:string):DocumentSegment[] {
 	// Define regex patterns for different markdown elements
-	const strongRegexp = /\*\*([^*]+)\*\*/g;
-	const emphasisRegexp = /_([^_]+)_/g;
+	const strongRegexp = /\*\*[^*]+\*\*/g;
+	const emphasisRegexp = /_[^_]+_/g;
 	const mentionRegexp = /@\w+/g;
 	const tagRegexp = /#\w+/g;
 	
@@ -35,7 +35,7 @@ function segmentMarkdownText(text:string):DocumentSegment[] {
 		// Add any plain text before this markdown match
 		if (match.index > lastIndex) {
 			const plainText = text.slice(lastIndex, match.index);
-			if (plainText.trim()) { // Ignore empty spaces
+			if (plainText) {
 				segments.push({ type: "text", content: plainText });
 			}
 		}
@@ -58,7 +58,7 @@ function segmentMarkdownText(text:string):DocumentSegment[] {
 	// Add any remaining text after the last markdown match
 	if (lastIndex < text.length) {
 		const remainingText = text.slice(lastIndex);
-		if (remainingText.trim()) { // Ignore empty spaces
+		if (remainingText) {
 			segments.push({ type: "text", content: remainingText });
 		}
 	}
