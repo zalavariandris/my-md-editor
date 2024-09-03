@@ -7,15 +7,17 @@ type TextSelection = {
 };
 
 function isBlock(node:Node){
-    if(node.nodeType == Node.ELEMENT_NODE && window.getComputedStyle(node as HTMLElement).display!="block"){
+    if(node.nodeType == Node.ELEMENT_NODE && window.getComputedStyle(node as HTMLElement).display=="block"){
         return true;
     }
     return false;
 }
+// window.isBlock = isBlock;
 
 function isSegment(node:Node){
     return node.parentElement && isBlock(node.parentElement);
 }
+// window.isSegment = isSegment;
 
 function getBlockElement(node:HTMLElement | Text):HTMLElement
 {
@@ -23,12 +25,13 @@ function getBlockElement(node:HTMLElement | Text):HTMLElement
     if(!element)
         throw new Error(`textNode has no parent element`)
 
-    while(element.parentElement && isBlock(element)){
+    while(element.parentElement && !isBlock(element)){
         element = element.parentElement;
     }
 
     return element;
 }
+window.getBlockElement = getBlockElement;
 
 function getSegmentNode(node:HTMLElement | Text):HTMLElement | Text{
     const blockElement = getBlockElement(node);
@@ -37,73 +40,8 @@ function getSegmentNode(node:HTMLElement | Text):HTMLElement | Text{
     }
     return node;
 }
-
-window.getBlockElement = getBlockElement;
 window.getSegmentNode = getSegmentNode;
 
-
-
-function setTextSelection(root: HTMLElement, selection: TextSelection)
-{
-	console.assert(root?true:false);
-
-	if (selection.start > selection.end) {
-		selection.start = selection.end;
-	}
-
-	let startNode = null;
-	let startOffset = 0;
-	let endNode = null;
-	let endOffset = 0;
-
-	let stack = [...root.childNodes];
-
-	
-	let position = 0;
-	let prevPos = position;
-	while(stack.length>0)
-	{
-		const node:ChildNode|undefined = stack.shift();
-		if(!node){
-			break;
-		}
-		if (node.nodeType==Node.TEXT_NODE) {
-			const textNode = node as Text;
-			prevPos = position;
-			position+=textNode.length;
-			if(getSegmentNode(textNode).nextSibling==null){
-				position+=1;
-			}
-		}
-		else {
-			stack = [...node.childNodes, ...stack];
-		}
-
-		if (!startNode && position > selection.start) {
-			startNode = node;
-			startOffset = selection.start-prevPos;
-		}
-
-		if (!endNode && position > selection.end) {
-			endNode = node;
-			endOffset = selection.end-prevPos;
-		}
-
-		if(startNode && endNode) {
-            const currentSelection = window.getSelection();
-            if(selection.direction=="forward") {
-                currentSelection!.setBaseAndExtent(startNode, startOffset, endNode, endOffset);
-            }
-            else if(selection.direction == "backward") {
-                currentSelection!.setBaseAndExtent(endNode, endOffset, startNode, startOffset);
-            }
-            
-            
-			return;
-		}
-
-	}
-}
 
 function getTextSelection(root:HTMLElement):TextSelection|null{
 	console.assert(root?true:false);
@@ -124,10 +62,14 @@ function getTextSelection(root:HTMLElement):TextSelection|null{
 	{
 		prevPos = position;
 		const node:Node = stack.shift()!;
-		if (node.nodeType==Node.TEXT_NODE) {
+
+		if(isBlock(node) && node.textContent==""){
+			position+=1;
+		}
+		else if (node.nodeType==Node.TEXT_NODE) {
 			const textNode = node as Text;
 			position+=textNode.length;
-			if(getSegmentNode(textNode).nextSibling==null){
+			if(!getSegmentNode(textNode).nextSibling){
 				position+=1;
 			}
 		}
@@ -153,6 +95,80 @@ function getTextSelection(root:HTMLElement):TextSelection|null{
 	}
 	return null;
 }
+
+function setTextSelection(root: HTMLElement, selection: TextSelection)
+{
+	console.assert(root?true:false);
+
+	if (selection.start > selection.end) {
+		selection.start = selection.end;
+	}
+
+	let startNode = null;
+	let startOffset = 0;
+	let endNode = null;
+	let endOffset = 0;
+
+	let stack = [...root.childNodes];
+
+	
+	let position = 0;
+	let prevPos = position;
+	while(stack.length>0)
+	{
+		const node:ChildNode|undefined = stack.shift();
+		if (!node) {
+			break;
+		}
+		
+		if (isBlock(node) && node.textContent == "") {
+			position+=1;  // handle empty block nodes
+		}
+		else if (node.nodeType==Node.TEXT_NODE) {
+			const textNode = node as Text;
+			prevPos = position;
+			position+=textNode.length;
+			if (!getSegmentNode(textNode).nextSibling) {
+				position+=1;
+			}
+		}
+		else {
+			stack = [...node.childNodes, ...stack];
+		}
+
+		if (!startNode && position > selection.start) {
+			startNode = node;
+			if (isBlock(node)) {
+				startOffset == 0; // handle empty block nodes
+			}
+			else {
+				startOffset = selection.start-prevPos;
+			}
+		}
+
+		if (!endNode && position > selection.end) {
+			endNode = node;
+			if (isBlock(node)) {
+				endOffset = 0;  // handle empty block nodes
+			}
+			else {
+				endOffset = selection.end-prevPos;
+			}
+		}
+
+		if(startNode && endNode) {
+            const currentSelection = window.getSelection();
+            if(selection.direction=="forward") {
+                currentSelection!.setBaseAndExtent(startNode, startOffset, endNode, endOffset);
+            }
+            else if(selection.direction == "backward") {
+                currentSelection!.setBaseAndExtent(endNode, endOffset, startNode, startOffset);
+            }
+			return;
+		}
+	}
+}
+
 
 function collapseTextSelectionToStart(selection: TextSelection) {
     return {start: selection.start, end: selection.start, direction: selection.direction};
@@ -199,9 +215,9 @@ function setTextSelectionPosition(position:number, selection:TextSelection) {
     return {start: position, end: position, direction: selection.direction};
 }
 
-window.setTextSelection = setTextSelection;
-window.getTextSelection = getTextSelection;
-window.modifyTextSelection = modifyTextSelection;
+// window.setTextSelection = setTextSelection;
+// window.getTextSelection = getTextSelection;
+// window.modifyTextSelection = modifyTextSelection;
 
 export type {TextSelection};
 export {setTextSelection, getTextSelection, modifyTextSelection, collapseTextSelectionToStart, collapseTextSelectionToEnd, setTextSelectionPosition};

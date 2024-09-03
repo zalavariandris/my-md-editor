@@ -33,7 +33,6 @@ function removeTextInRange(originalString: string, start: number, end: number): 
     return originalString.slice(0, start) + originalString.slice(end);
 }
 
-
 interface State{
 	readonly source: string;
 	readonly selection: TextSelection | null;
@@ -49,6 +48,7 @@ function MDEditor() {
 	const [state, setState] = useState<State>({
 		source: `# My _markdown_ editor\n`+
 				`This is a **markdown** #richtext editor.\n`+
+				`\n`+
 				`Support **strong**, _emphasis_, #tags\n` +
 				`and @mentions.\n`,
 		selection: {start:0, end:0, direction:"forward"}
