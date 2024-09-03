@@ -41,6 +41,7 @@ h1, p{
     display: block;
     margin: 0;
     line-height: 2rem;
+    min-height: 2rem;
 }
 
 h1{margin-left: -2ch;}
