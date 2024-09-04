@@ -44,6 +44,24 @@ type ItemType = [
 	}
 ];
 
+/*see: https://citeproc-js.readthedocs.io/en/latest/csl-json/markup.html*/
+type CiteItem = {
+	"id":string;
+    "locator"?: string | number;
+    "label"?: string;
+    "prefix"?: string;
+    "suffix"?: string;
+	"suppress-author"?:boolean;
+	"author-only"?:boolean;
+	"position"?:number;
+	"near-note"?: boolean;
+}
+
+type Citation = {
+	citationItems: CiteItem[];
+	properties: any;
+}
+
 function Bibliography({...props}) {
 	// const [citationArray, setCitationArray] = useState<any[]>([]);
 	// const [locale, setLocale] = useState(null);
@@ -54,9 +72,26 @@ function Bibliography({...props}) {
 		.then((response)=>{
 			response.text().then((text)=>{
 
-				// parse citations to array
-				const items = parse(text);
+				// parse bibliographic reference array
+				const items:any[] = parse(text);
 				console.log(items);
+
+				// create in document citations
+				const citations:Citation[] = [{
+					"citationItems": [
+					   {
+						  "id": "adolph.etal_2014",
+						  "locator": 123,
+						  "label": "page",
+						  "prefix": "See ",
+						  "suffix": " (arguing that X is Y)"
+					   }
+					],
+					"properties": {
+					   "noteIndex": 1
+					}
+				 }]
+
 
 				/* ==================== */
 				var styleID = "apa";
@@ -77,7 +112,7 @@ function Bibliography({...props}) {
 					// locale definition file.  This method must return a valid *serialized*
 					// CSL locale. (In other words, an blob of XML as an unparsed string.  The
 					// processor will fail on a native XML object or buffer).
-					retrieveLocale: function (lang:string){
+					retrieveLocale: function (lang:string) {
 						xhr.open('GET', 'https://raw.githubusercontent.com/Juris-M/citeproc-js-docs/master/locales-' + lang + '.xml', false);
 						xhr.send(null);
 						return xhr.responseText;
@@ -85,7 +120,7 @@ function Bibliography({...props}) {
 
 					// Given an identifier, this retrieves one citation item.  This method
 					// must return a valid CSL-JSON object.
-					retrieveItem: function(id:string){
+					retrieveItem: function(id:string) {
 						const itemIdx = items.findIndex((item)=>item.id==id)
 						return items[itemIdx];
 					}
@@ -101,13 +136,12 @@ function Bibliography({...props}) {
 
 				var citeproc = getProcessor();
 
-				var citeDiv = document.getElementById('cite-div');
-				var citationParams = citations[0];
-				var citationStrings = citeproc.processCitationCluster(citationParams[0], citationParams[1], [])[1];
-				
-
-
-
+				// var citationsPre = [ ["adolph.etal_2014", 1] ];
+				// var citationsPost = [ ["adolph.etal_2014", 1] ];
+				var result = citeproc.processCitationCluster(citations[0], [], []);
+				let bibliography = citeproc.makeBibliography();
+				console.log(bibliography)
+				return result[1]
 			})
 		})
 	}, []);
