@@ -12,25 +12,17 @@
     src: url(./fonts/iAWriterQuattroS-Regular.woff2);
 }
 
-html{
+
+.editor{
     font-size:20pt;
     font-family: 'Courier New', Courier, monospace;
+    margin: 0;
 }
-
-body{
-    font-size:20pt;
-    font-family: 'Courier New', Courier, monospace;
-    /* font-size:14pt; */
-    /* font-family: 'iAWriterMono'; */
-    /* font-family: 'iAWriterDuo'; */
-    /* font-family: 'iAWriterQuattro'; */
-}
-
 .editor{
     padding:0 6ch;
     margin: auto;
     max-width: 64ch;
-    white-space: pre;
+    white-space: pre-wrap;
 }
 .editor:focus{
     outline: none;

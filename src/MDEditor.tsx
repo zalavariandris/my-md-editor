@@ -48,9 +48,10 @@ function MDEditor() {
 	const [state, setState] = useState<State>({
 		source: `# My _markdown_ editor\n`+
 				`This is a **markdown** #richtext editor.\n`+
-				`\n`+
+				// `\n`+
 				`Support **strong**, _emphasis_, #tags\n` +
-				`and @mentions.\n`,
+				`and @mentions.\n`+
+				`\n`,
 		selection: {start:0, end:0, direction:"forward"}
 	});
 	
@@ -83,7 +84,14 @@ function MDEditor() {
 
 		if (e.key.length==1) {
 			setState(state=>produce(state, draft=>{
-				if(draft.selection){
+				if (draft.selection) {
+					if (draft.selection.start != draft.selection.end) {
+						// delete selection
+						draft.source = removeTextInRange(draft.source, draft.selection.start, draft.selection.end);
+						draft.selection = {start: draft.selection.start, end: draft.selection.start, direction:"forward"};
+					}
+
+					// insert characters
 					draft.source = insertTextAtPos(draft.source, e.key, draft.selection.end);
 					draft.selection = setTextSelectionPosition(draft.selection.end+1, draft.selection);
 				}
@@ -92,7 +100,12 @@ function MDEditor() {
 		}
 		else if(e.key == "Enter"){
 			setState(state=>produce(state, draft=>{
-				if(draft.selection){
+				if (draft.selection) {
+					if (draft.selection.start != draft.selection.end) {
+						// delete selection
+						draft.source = removeTextInRange(draft.source, draft.selection.start, draft.selection.end);
+						draft.selection = {start: draft.selection.start, end: draft.selection.start, direction:"forward"};
+					}
 					draft.source = insertTextAtPos(draft.source, "\n", draft.selection.end);
 					draft.selection = setTextSelectionPosition(draft.selection.end+1, draft.selection);
 				}
@@ -101,18 +114,34 @@ function MDEditor() {
 		}
 		else if(e.key == "Backspace") {
 			setState(state=>produce(state, draft=>{
-				if(draft.selection){
-					draft.source = removeTextInRange(draft.source, draft.selection.start-1, draft.selection.end);
-					draft.selection = {start: draft.selection.start-1, end: draft.selection.start-1, direction:"forward"};
+				if (draft.selection) {
+					if (draft.selection.end == draft.selection.start) {
+						// delete backward
+						draft.source = removeTextInRange(draft.source, draft.selection.start-1, draft.selection.end);
+						draft.selection = {start: draft.selection.start-1, end: draft.selection.start-1, direction:"forward"};
+					}
+					else {
+						// delete selection
+						draft.source = removeTextInRange(draft.source, draft.selection.start, draft.selection.end);
+						draft.selection = {start: draft.selection.start, end: draft.selection.start, direction:"forward"};
+					}
 				}
 				return draft;			
 			}));
 		}
 		else if(e.key == "Delete"){
 			setState(state=>produce(state, draft=>{
-				if(draft.selection){
-					draft.source = removeTextInRange(draft.source, draft.selection.start, draft.selection.end+1);
-					draft.selection = {start: draft.selection.start, end: draft.selection.start, direction:"forward"};
+				if (draft.selection) {
+					if (draft.selection.end == draft.selection.start) {
+						// delete forward
+						draft.source = removeTextInRange(draft.source, draft.selection.start, draft.selection.end+1);
+						draft.selection = {start: draft.selection.start, end: draft.selection.start, direction:"forward"};
+					}
+					else {
+						// delete selection
+						draft.source = removeTextInRange(draft.source, draft.selection.start, draft.selection.end);
+						draft.selection = {start: draft.selection.start, end: draft.selection.start, direction:"forward"};
+					}
 				}
 				return draft;			
 			}));
@@ -170,6 +199,14 @@ function MDEditor() {
 	
 	function onPaste(e:any) {
 		e.preventDefault();
+		if(state.selection) {
+			const pastedText = e.clipboardData.getData('Text');
+			setState(state=>produce(state, draft=>{
+				if(draft.selection)
+					draft.source = insertTextAtPos(draft.source, pastedText, draft.selection.end);
+				return draft;
+			}));
+		}
 	}
 	
 	function onDrop(e:any) {
@@ -181,41 +218,41 @@ function MDEditor() {
 	}
 	
 	return h("div",{},
-		h("div", {},
-			h("div", {},
-				"selection range",
-				h("input", {
-					type:"number", 
-					value:state.selection?.start, 
-					onChange: e=>{
-						setState(state=>produce(state, draft=>{
-							const pos = parseInt(e.target.value);
-							if(draft.selection)
-								draft.selection!.start = pos;
-							else{
-								draft.selection = {start: pos, end: pos, direction: "forward"};
-							}
-							return draft;
-						}))
-					}
-				}),
-				h("input", {
-					type:"number", 
-					value:state.selection?.end, 
-					onChange: e=>{
-						setState(state=>produce(state, draft=>{
-							const pos = parseInt(e.target.value);
-							if(draft.selection)
-								draft.selection!.end = pos;
-							else{
-								draft.selection = {start: pos, end: pos, direction: "forward"};
-							}
-							return draft;
-						}))
-					}
-				}),
-			),
-		),
+		// h("div", {},
+		// 	h("div", {},
+		// 		"selection range",
+		// 		h("input", {
+		// 			type:"number", 
+		// 			value:state.selection?.start, 
+		// 			onChange: e=>{
+		// 				setState(state=>produce(state, draft=>{
+		// 					const pos = parseInt(e.target.value);
+		// 					if(draft.selection)
+		// 						draft.selection!.start = pos;
+		// 					else{
+		// 						draft.selection = {start: pos, end: pos, direction: "forward"};
+		// 					}
+		// 					return draft;
+		// 				}))
+		// 			}
+		// 		}),
+		// 		h("input", {
+		// 			type:"number", 
+		// 			value:state.selection?.end, 
+		// 			onChange: e=>{
+		// 				setState(state=>produce(state, draft=>{
+		// 					const pos = parseInt(e.target.value);
+		// 					if(draft.selection)
+		// 						draft.selection!.end = pos;
+		// 					else{
+		// 						draft.selection = {start: pos, end: pos, direction: "forward"};
+		// 					}
+		// 					return draft;
+		// 				}))
+		// 			}
+		// 		}),
+		// 	),
+		// ),
 		h("div",{
 			id:"editor",
 			ref: editorDiv,
@@ -255,11 +292,11 @@ function MDEditor() {
 				}
 			})
 		),
-		h("textarea", {
-			id:"textarea", 
-			onInput: (e:any)=>setState(state=>produce(state, draft=>draft.source=e.target.value)),
-			value: state.source
-		})
+		// h("textarea", {
+		// 	id:"textarea", 
+		// 	onInput: (e:any)=>setState(state=>produce(state, draft=>draft.source=e.target.value)),
+		// 	value: state.source
+		// })
 	);
 }
 
