@@ -2,7 +2,7 @@ import { useState } from 'react'
 // import './App.css'
 import './editor.css'
 import MDEditor from "./MDEditor.tsx"
-import {Bibliography} from "./Bibliography.jsx"
+import {Bibliography} from "./Bibliography.tsx"
 
 function App() {
   const [count, setCount] = useState(0);

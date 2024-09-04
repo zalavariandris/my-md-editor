@@ -37,27 +37,82 @@ import './bibliography.css'
 // // window.CSL = CSL;
 
 // window.csl  = new CSL({retreiveLocale, retreiveItem}, style, true);
-
+type ItemType = [
+	{
+		id:string,
+		[key:string]: string
+	}
+];
 
 function Bibliography({...props}) {
-	const [citations, setCitations] = useState({});
-	const [locale, setLocale] = useState(null);
+	// const [citationArray, setCitationArray] = useState<any[]>([]);
+	// const [locale, setLocale] = useState(null);
 	
 	// fetch citations
 	useEffect(()=>{
 		fetch("./ref.bib")
 		.then((response)=>{
 			response.text().then((text)=>{
-				setCitations(Object.fromEntries(parse(text)
-					.filter(cite=>cite.issued?true:false)
-					.map(row=>{
-						const {id, ...citation} = row;
-						return [id, citation];
-					})
-				));
+
+				// parse citations to array
+				const items = parse(text);
+				console.log(items);
+
+				/* ==================== */
+				var styleID = "apa";
+
+				var xhr = new XMLHttpRequest();
+
+
+				// get CSL style
+				xhr.open('GET', 'https://raw.githubusercontent.com/citation-style-language/styles/master/' + styleID + '.csl', false);
+				xhr.send(null);
+				var style = xhr.responseText;
+				console.assert(style?true:false);
+
+				// Initialize a system object, which contains two methods needed by the
+				// engine.
+				const citeprocSys = {
+					// Given a language tag in RFC-4646 form, this method retrieves the
+					// locale definition file.  This method must return a valid *serialized*
+					// CSL locale. (In other words, an blob of XML as an unparsed string.  The
+					// processor will fail on a native XML object or buffer).
+					retrieveLocale: function (lang:string){
+						xhr.open('GET', 'https://raw.githubusercontent.com/Juris-M/citeproc-js-docs/master/locales-' + lang + '.xml', false);
+						xhr.send(null);
+						return xhr.responseText;
+					},
+
+					// Given an identifier, this retrieves one citation item.  This method
+					// must return a valid CSL-JSON object.
+					retrieveItem: function(id:string){
+						const itemIdx = items.findIndex((item)=>item.id==id)
+						return items[itemIdx];
+					}
+				};
+
+				// Given the identifier of a CSL style, this function instantiates a CSL.Engine
+				// object that can render citations in that style.
+				function getProcessor() {
+					// Instantiate and return the engine
+					var citeproc = new CSL.Engine(citeprocSys, style);
+					return citeproc;
+				};
+
+				var citeproc = getProcessor();
+
+				var citeDiv = document.getElementById('cite-div');
+				var citationParams = citations[0];
+				var citationStrings = citeproc.processCitationCluster(citationParams[0], citationParams[1], [])[1];
+				
+
+
+
 			})
 		})
 	}, []);
+
+	
 
 	// useEffect(()=>{
 	// 	// update cite processor
@@ -134,56 +189,56 @@ function Bibliography({...props}) {
 		
 		// console.log(processorOutput());
 
-	function cite(citeID) {
-		if(citeID in citations){
-			// get style XML
-			const styleID = "chicago-fullnote-bibliography";
-			const xhr = new XMLHttpRequest();
-			xhr.open('GET', 'https://raw.githubusercontent.com/citation-style-language/styles/master/' + styleID + '.csl', false);
-			xhr.send(null);
-			const styleAsText = xhr.responseText;
+	function cite(citeID:string) {
+		// if(citeID in citations){
+		// 	// get style XML
+		// 	const styleID = "chicago-fullnote-bibliography";
+		// 	const xhr = new XMLHttpRequest();
+		// 	xhr.open('GET', 'https://raw.githubusercontent.com/citation-style-language/styles/master/' + styleID + '.csl', false);
+		// 	xhr.send(null);
+		// 	const styleAsText = xhr.responseText;
 
-			// create citeproc object
-			const citeprocSys = {
-				retrieveLocale: function (lang){
-					var xhr = new XMLHttpRequest();
-					xhr.open('GET', 'https://raw.githubusercontent.com/Juris-M/citeproc-js-docs/master/locales-' + lang + '.xml', false);
-					xhr.send(null);
-					return xhr.responseText;
-				},
-				retrieveItem: function(id){
-					return citations[id];
-				}
-			};
-			const citeproc = new CSL.Engine(citeprocSys, styleAsText);
-			citeproc.updateItems(citations)
+		// 	// create citeproc object
+		// 	const citeprocSys = {
+		// 		retrieveLocale: function (lang){
+		// 			var xhr = new XMLHttpRequest();
+		// 			xhr.open('GET', 'https://raw.githubusercontent.com/Juris-M/citeproc-js-docs/master/locales-' + lang + '.xml', false);
+		// 			xhr.send(null);
+		// 			return xhr.responseText;
+		// 		},
+		// 		retrieveItem: function(id){
+		// 			return citations[id];
+		// 		}
+		// 	};
+		// 	const citeproc = new CSL.Engine(citeprocSys, styleAsText);
+		// 	citeproc.updateItems(citations)
 
-			// process citation
-			const citation = {
-				properties: {
-					noteIndex: 3
-				},
-				citationItems: Object.entries(citations).map(([id, props])=>{
-					return {id, ...props};
-				})
-			}
-			var citationsPre = [ ["citation-quaTheb4", 1], ["citation-mileiK4k", 2] ];
-			var citationsPost = [ ["citation-adaNgoh1", 4] ];
-			var result = citeproc.processCitationCluster(citation, citationsPre, citationsPost);
-			console.log(JSON.stringify(result[0], null, 2));
-			console.log(JSON.stringify(result[1], null, 2));
+		// 	// process citation
+		// 	const citation = {
+		// 		properties: {
+		// 			noteIndex: 3
+		// 		},
+		// 		citationItems: Object.entries(citations).map(([id, props])=>{
+		// 			return {id, ...props};
+		// 		})
+		// 	}
+		// 	var citationsPre = [ ["citation-quaTheb4", 1], ["citation-mileiK4k", 2] ];
+		// 	var citationsPost = [ ["citation-adaNgoh1", 4] ];
+		// 	var result = citeproc.processCitationCluster(citation, citationsPre, citationsPost);
+		// 	console.log(JSON.stringify(result[0], null, 2));
+		// 	console.log(JSON.stringify(result[1], null, 2));
 
-			// return result;
-			return citeID;
-		}
+		// 	// return result;
+		// 	return citeID;
+		// }
 		return citeID;
 	}
 	
 	return <div className="bibliography">
 		<h1>Bibliography</h1>
-		{Object.entries(citations).map(([citeID, citation])=>{
+		{/* {Object.entries(citations).map(([citeID, citation])=>{
 			return <li>{cite(citeID)}</li>
-		})}
+		})} */}
 	</div>
 	}
 	
