@@ -1,5 +1,5 @@
 html{
-  font-size:20pt;
+  font-size:12pt;
   font-family: 'Courier New', Courier, monospace;
   min-height: 100vh;
 }
@@ -11,7 +11,6 @@ body{
   /* font-family: 'iAWriterDuo'; */
   /* font-family: 'iAWriterQuattro'; */
 }
-
 
 a {
   font-weight: 500;

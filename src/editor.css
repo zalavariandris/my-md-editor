@@ -12,12 +12,12 @@
     src: url(./fonts/iAWriterQuattroS-Regular.woff2);
 }
 
-
 .editor{
-    font-size:20pt;
+    font-size:12pt;
     font-family: 'Courier New', Courier, monospace;
     margin: 0;
 }
+
 .editor{
     padding:0 6ch;
     margin: auto;
@@ -28,20 +28,19 @@
     outline: none;
 }
 
-h1, p{
-    font-size: 16pt;
+.editor>h1, .editor>p{
     display: block;
     margin: 0;
     line-height: 2rem;
     min-height: 2rem;
 }
 
-h1{margin-left: -2ch;}
-h2{margin-left: -3ch;}
-h3{margin-left: -3ch;}
-h4{margin-left: -4ch;}
-h5{margin-left: -5ch;}
-h6{margin-left: -6ch;}
+.editor>h1{text-indent: -2ch;}
+.editor>h2{text-indent: -3ch;}
+.editor>h3{text-indent: -3ch;}
+.editor>h4{text-indent: -4ch;}
+.editor>h5{text-indent: -5ch;}
+.editor>h6{text-indent: -6ch;}
 
 strong, em, span.tag, span.mention{
     display: inline-block;

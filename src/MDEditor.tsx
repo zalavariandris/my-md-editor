@@ -38,7 +38,9 @@ interface State{
 	readonly selection: TextSelection | null;
 }
 
-function MDEditor() {
+
+
+function MDEditor({value, onChange}:{value:string, onChange:(value: string)=>void}) {
 	const editorDiv = useRef(null);
 	// const [source, setSource] = useState<string>(`# My _markdown_ editor\n`+
 	// 									`This is a **markdown** #richtext editor.\n`+
@@ -46,15 +48,10 @@ function MDEditor() {
 	// const [selection, setSelection] = useState<TextSelection|null>({start: 0, end: 0, direction:"forward"});
 
 	const [state, setState] = useState<State>({
-		source: `# My _markdown_ editor\n`+
-				`This is a **markdown** #richtext editor.\n`+
-				// `\n`+
-				`Support **strong**, _emphasis_, #tags\n` +
-				`and @mentions.\n`+
-				`\n`,
+		source: sacksmd,
 		selection: {start:0, end:0, direction:"forward"}
 	});
-	
+
 	useEffect(()=>{
 		if(editorDiv.current) {
 			if(state.selection){
@@ -218,41 +215,6 @@ function MDEditor() {
 	}
 	
 	return h("div",{},
-		// h("div", {},
-		// 	h("div", {},
-		// 		"selection range",
-		// 		h("input", {
-		// 			type:"number", 
-		// 			value:state.selection?.start, 
-		// 			onChange: e=>{
-		// 				setState(state=>produce(state, draft=>{
-		// 					const pos = parseInt(e.target.value);
-		// 					if(draft.selection)
-		// 						draft.selection!.start = pos;
-		// 					else{
-		// 						draft.selection = {start: pos, end: pos, direction: "forward"};
-		// 					}
-		// 					return draft;
-		// 				}))
-		// 			}
-		// 		}),
-		// 		h("input", {
-		// 			type:"number", 
-		// 			value:state.selection?.end, 
-		// 			onChange: e=>{
-		// 				setState(state=>produce(state, draft=>{
-		// 					const pos = parseInt(e.target.value);
-		// 					if(draft.selection)
-		// 						draft.selection!.end = pos;
-		// 					else{
-		// 						draft.selection = {start: pos, end: pos, direction: "forward"};
-		// 					}
-		// 					return draft;
-		// 				}))
-		// 			}
-		// 		}),
-		// 	),
-		// ),
 		h("div",{
 			id:"editor",
 			ref: editorDiv,

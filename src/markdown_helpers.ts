@@ -90,5 +90,5 @@ function parseMarkdown(source:string): DocumentModel{
 }
 
 
-
+export type {DocumentModel, DocumentBlock, DocumentSegment};
 export {parseMarkdown, segmentMarkdownText};

@@ -1,15 +1,16 @@
 import { useState } from 'react'
-// import './App.css'
 import './editor.css'
 import MDEditor from "./MDEditor.tsx"
 import {Bibliography} from "./Bibliography.tsx"
 
+const sacksmd = await (await fetch("./6.4 Oliver Sacks és a felnőttkori tanulás.md")).text();
+
 function App() {
-  const [count, setCount] = useState(0);
+  const [text, setText] = useState<string>(sacksmd);
 
   return (
     <>
-    <MDEditor></MDEditor>
+    <MDEditor value={text} onChange={setText}></MDEditor>
     <Bibliography></Bibliography>
     </>
   )
