@@ -96,11 +96,6 @@ type Model = {
 	source: string;
 }
 
-let model:Model = {
-	source: await fetchMarkdown("./6.4 Oliver Sacks és a felnőttkori tanulás.md"),
-	selection: null
-};
-
 type Msg
 	= {type:"insert", text: string}
 	| {type:"removeBackward"}
@@ -110,7 +105,8 @@ type Msg
 	| {type:"extendSelectionRight"}
 	| {type:"moveCaretRight"}
 	| {type:"moveCaretUp"}
-	| {type:"moveCaretDown"};
+	| {type:"moveCaretDown"}
+	| {type:"select", selection:TextSelection | null};
 
 function update(msg:Msg, model:Model):Model {
 	switch (msg.type) {
@@ -191,10 +187,16 @@ function update(msg:Msg, model:Model):Model {
 				return draft;
 			})
 			break;
+		case "select":
+			return produce(model, draft=>{
+				draft.selection = msg.selection;
+				return draft;
+			});
 		default:
 			return model;
 	}
 }
+window.update = update;
 
 function insertTextAtPos(originalString:string, textToInsert:string, position:number):string {
 	// Ensure the position is within the bounds of the string
@@ -225,7 +227,7 @@ window.removeTextInRange = removeTextInRange;
 
 const memoParseMarkdown = memoize(parseMarkdown)
 
-let doc = ()=>memoParseMarkdown(model.source);
+
 
 
 /* **************************** *
@@ -282,8 +284,6 @@ function getCitationsFromDocument(doc:DocumentModel){
 		});
 }
 
-const citations = getCitationsFromDocument(doc());
-console.log("citations:", citations);
 
 /* ==================== */
 var styleID = "apa";
@@ -366,54 +366,10 @@ function getBibliography(references:ReferenceItem[]) {
 /* ********** *
 * COMPONENTS *
 * ********** */
-function keyEventToMessage(e:KeyboardEvent) {
-	e.preventDefault();
-	let newModel = model;
-	if (e.key.length==1) {
-		const text = e.key as string;
-		newModel = update({type: "insert", text}, model);
-
-	}
-	else if(e.key == "Enter"){
-		
-	}
-	else if(e.key == "Backspace") {
-		newModel = update({type: "removeBackward"}, model);
-	}
-	else if(e.key == "Delete"){
-		newModel = update({type: "removeForward"}, model);
-	}
-	else if (e.key == "ArrowLeft") {
-		if(e.shiftKey)
-			newModel = update({type: "extendSelectionLeft"}, model);
-		else
-			newModel = update({type: "moveCaretLeft"}, model);
-	}
-	else if (e.key == "ArrowRight") {
-		if(e.shiftKey)
-			newModel = update({type: "extendSelectionRight"}, model);
-		else
-			newModel = update({type: "moveCaretRight"}, model);
-	}
-	else if (e.key == "ArrowUp") {
-		newModel = update({type: "moveCaretUp"}, model);
-	}
-	else if (e.key == "ArrowDown") {
-		newModel = update({type: "moveCaretDown"}, model);
-	}
-
-	if (newModel!=model) {
-		needsRender = newModel.source!=model.source;
-		needsSelection = newModel.selection!=model.selection;
-		model = newModel;
-		if(needsRender || needsSelection){
-			scheduleUpdate();
-		}
-	}
-}
 
 function renderEditor(model:Model):HTMLElement {
-	const blockElements = doc().map(block=>{
+	const doc = memoParseMarkdown(model.source);
+	const blockElements = doc.map(block=>{
 		const children:(HTMLElement | string)[] = block.content.map(segment=>{
 			let textContent = segment.content;
 			if (segment.type==="strong") {
@@ -449,14 +405,63 @@ function renderEditor(model:Model):HTMLElement {
 	const frame = createElement("div", {
 		class:"editor",
 		contenteditable: true,
-		onKeyDown: keyEventToMessage
+		onKeyDown: 	(e:KeyboardEvent) => {
+			e.preventDefault();
+			let newModel = model;
+			if (e.key.length==1) {
+				const text = e.key as string;
+				newModel = update({type: "insert", text}, model);
+			}
+			else if(e.key == "Enter"){
+				
+			}
+			else if(e.key == "Backspace") {
+				newModel = update({type: "removeBackward"}, model);
+			}
+			else if(e.key == "Delete"){
+				newModel = update({type: "removeForward"}, model);
+			}
+			else if (e.key == "ArrowLeft") {
+				if(e.shiftKey)
+					newModel = update({type: "extendSelectionLeft"}, model);
+				else
+					newModel = update({type: "moveCaretLeft"}, model);
+			}
+			else if (e.key == "ArrowRight") {
+				if(e.shiftKey)
+					newModel = update({type: "extendSelectionRight"}, model);
+				else
+					newModel = update({type: "moveCaretRight"}, model);
+			}
+			else if (e.key == "ArrowUp") {
+				newModel = update({type: "moveCaretUp"}, model);
+			}
+			else if (e.key == "ArrowDown") {
+				newModel = update({type: "moveCaretDown"}, model);
+			}
+		
+			if (newModel!=model) {
+				needsRender = newModel.source!=model.source;
+				needsSelection = newModel.selection!=model.selection;
+				if(needsRender || needsSelection){
+					scheduleUpdate(newModel);
+				}
+			}
+		}
 	}, blockElements);
 	
-	document.addEventListener("selectionchange", () => {
-		model = produce(model, draft=>{
-			draft.selection = getTextSelection(frame);
-			return draft;
-		});
+	document.addEventListener("selectionchange", (e)=>{
+		e.preventDefault();
+		const newSelection = getTextSelection(frame);
+		console.log(newSelection);
+		const newModel = update({type: "select", selection: newSelection}, model)
+		if (newModel!=model) {
+			needsRender = newModel.source!=model.source;
+			needsSelection = newModel.selection!=model.selection;
+			if(needsRender || needsSelection){
+				scheduleUpdate(newModel);
+			}
+		}
 	});
 	
 	return frame;
@@ -485,39 +490,46 @@ function renderBibliography(bibliography:Bibliography):HTMLElement
 }
 
 /* INITIAL RENDER */
-function render(root:HTMLElement):void {
-	console.log("render");
-	const editorElement = renderEditor(model);
-	const bibliographyElement = renderBibliography(getBibliography(references));
-	root.replaceChildren(editorElement, bibliographyElement);
+function getRoot():HTMLElement{
+	return document.getElementById("root") || document.body;
 }
 
-function tick(){
-	console.log("tick")
-	const root = document.getElementById("root") || document.body
+function render(model:Model):void {
+	const editorElement = renderEditor(model);
+	const bibliographyElement = renderBibliography(getBibliography(references));
+	getRoot().replaceChildren(editorElement, bibliographyElement);
+}
+
+function tick(model:Model){
+	
 	if (needsRender) {
-		render(root);
+		render(model);
 		needsRender = false;
 	}
 	if (needsSelection) {
-		if(model.selection){
-			setTextSelection(root, model.selection);
+		console.log("tick", model.selection)
+		if (model.selection) {
+			setTextSelection(getRoot(), model.selection);
 		}else{
-			clearTextSelection(root);
+			clearTextSelection(getRoot());
 		}
 		needsSelection = false;
 	}
 }
 
 let scheduled = false;
-function scheduleUpdate() {
-	if(scheduled) return;
+function scheduleUpdate(model:Model) {
+	if(scheduled)
+		return;
 
 	scheduled = true;
 	requestAnimationFrame(()=>{
-		tick();
+		tick(model);
 		scheduled = false;
 	})
 }
 
-scheduleUpdate();
+scheduleUpdate({
+	source: await fetchMarkdown("./6.4 Oliver Sacks és a felnőttkori tanulás.md"),
+	selection: null
+});
